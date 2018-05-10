@@ -2,65 +2,84 @@
 use Math::Trig;
 
 
-$level=15;
-$latStart = 54.70;
-$lonStart = 9.82;
-$latEnde = 54.57;
-$lonEnde = 10.08;
+$level_start=16;
+$level_end=18;
+$latStart = 47.82;
+$lonStart = 8.86;
+$latEnde = 47.42;
+$lonEnde = 9.8;
 
-($xstart, $ystart) = getTileNumber($latStart,$lonStart,$level);
-($xende,  $yende)  = getTileNumber($latEnde, $lonEnde, $level);
-$xanz = $xende-$xstart;
-$yanz = $yende-$ystart;
+
 
 $urlOSM="http://a.tile.openstreetmap.org";
-$urlOSeaMap="http://tiles.openseamap.org/seamark";
+$urlOSM="http://localhost:8008/hot";
+$urlOSeaMap="/export/home/bernd/src/renderer/work/tiles";
 
+for ($level=$level_start; $level < $level_end + 1; $level++) {
 
-# Status anzeigen
-print ("Anzahl x: $xanz\n");
-print ("Anzahl y: $yanz\n");
+	
+	($xstart, $ystart) = getTileNumber($latStart,$lonStart,$level);
+	($xende,  $yende)  = getTileNumber($latEnde, $lonEnde, $level);
+	$yende = $yende + 1;
+	$xende = $xende + 1;
 
-($dummy, $lonStart, $latStart, $$dummy) = Project($xstart,$ystart,$level);
-($latEnde, $dummy, $dummy, $lonEnde) = Project($xende,$yende,$level);
-print (" -> $latStart, $lonStart, $latEnde, $lonEnde \n"); 
+	$xanz = $xende-$xstart;
+	$yanz = $yende-$ystart;
+	
+	# Status anzeigen
+	print ("Anzahl x: $xanz\n");
+	print ("Anzahl y: $yanz\n");
 
-# Aufräumen
-`rm *.png *.log`;
+	`mkdir result`;
+	`rm *.png`;
+	`rm *.kap`;
+	
+	($dummy, $lonStart, $latStart, $$dummy) = Project($xstart,$ystart,$level);
+	($latEnde, $dummy, $dummy, $lonEnde) = Project($xende,$yende,$level);
+	print (" -> $latStart, $lonStart, $latEnde, $lonEnde \n"); 
 
-# liegt es im Rahmen?
-if ($xanz*$yanz > 25*25) {
-   die "Zu viele Teile";
+	# Aufräumen
+	`rm *.png *.log`;
+
+	# liegt es im Rahmen?
+	#if ($xanz*$yanz > 25*25 * 3) {
+	#   die "to many tiles" + $xanz*$yanz;
+	#}
+	# Hauptschleife
+	if (1 == 2) {
+		for ($x=$xstart; $x<$xstart+$xanz; $x++){
+		   for ($y=$ystart; $y<$ystart+$yanz; $y++){
+			   print ("Level, X, Y = $level, $x, $y\n");
+			   print("wget $urlOSM/$level/$x/$y.png -o $level-$y-$x.log -O $level-$y-$x.png\n");
+			   `wget "$urlOSM/$level/$x/$y.png" -o "wget.log" -O "$level-$y-$x.png" `;
+			   `cp "$urlOSeaMap/$level/$x/$y.png" "SeaMap-$level-$y-$x.png" 2> cp.log`;
+			   if ( -e "SeaMap-$level-$y-$x.png"){ 
+				  unless ( -z "SeaMap-$level-$y-$x.png"){
+					 `convert -type PaletteMatte -matte -transparent "#F8F8F8" "SeaMap-$level-$y-$x.png" "SeaMap-$level-$y-$x.png"`; 
+					 `composite "SeaMap-$level-$y-$x.png" "$level-$y-$x.png" "$level-$y-$x.png"` 
+				  }
+				  `rm "SeaMap-$level-$y-$x.png"`;
+			   }
+		   }
+		}
+	}
+	print ("montage -limit memory 8000000 +frame +shadow +label -tile '$xanz x $yanz' -geometry 256x256+0+0 '*.png' joined$level.png\n");
+	print("imgkap joined$level.png $latStart $lonStart $latEnde $lonEnde joined$level.kap\n");
+	`montage -limit memory 8000000 +frame +shadow +label -tile "$xanz x $yanz" -geometry 256x256+0+0 "*.png" joined$level.png`;
+	`imgkap joined$level.png $latStart $lonStart $latEnde $lonEnde joined$level.kap`;
+	`mv joined$level.kap joined$level.png result`;
 }
-# Hauptschleife
-for ($x=$xstart; $x<$xstart+$xanz; $x++){
-   for ($y=$ystart; $y<$ystart+$yanz; $y++){
-       print ("Level, X, Y = $level, $x, $y\n");
-       `wget "$urlOSM/$level/$x/$y.png" -o "$level-$y-$x.log" -O "$level-$y-$x.png" `;
-       `wget "$urlOSeaMap/$level/$x/$y.png" -o log -O "SeaMap-$level-$y-$x.png" `;
-       if ( -e "SeaMap-$level-$y-$x.png"){ 
-          unless ( -z "SeaMap-$level-$y-$x.png"){
-             `convert -type PaletteMatte -matte -transparent "#F8F8F8" "SeaMap-$level-$y-$x.png" "SeaMap-$level-$y-$x.png"`; 
-             `composite "SeaMap-$level-$y-$x.png" "$level-$y-$x.png" "$level-$y-$x.png"` 
-          }
-          `rm "SeaMap-$level-$y-$x.png"`;
-       }
-   }
-}
-`montage +frame +shadow +label -tile "$xanz x $yanz" -geometry 256x256+0+0 *.png joined.png`;
-
-
 
 sub getTileNumber {
    my ($lat,$lon,$zoom) = @_;
-   my $xtile = int( ($lon+180)/360 *2**$zoom ) ;
-   my $ytile = int( (1 - log(tan(deg2rad($lat)) + sec(deg2rad($lat)))/pi)/2 *2**$zoom ) ;
+   my $xtile = int( ($lon+180.0)/360.0 *2.0**$zoom ) ;
+   my $ytile = int( (1.0 - log(tan(deg2rad($lat)) + sec(deg2rad($lat)))/pi)/2.0 *2.0**$zoom ) ;
    return ($xtile, $ytile);
 }
 
 sub Project {
   my ($X,$Y, $Zoom) = @_;
-  my $Unit = 1 / (2 ** $Zoom);
+  my $Unit = 1 / (2.0 ** $Zoom);
   my $relY1 = $Y * $Unit;
   my $relY2 = $relY1 + $Unit;
  
@@ -75,8 +94,8 @@ sub Project {
   $relY2 = $LimitY - $RangeY * $relY2;
   my $Lat1 = ProjectMercToLat($relY1);
   my $Lat2 = ProjectMercToLat($relY2);
-  $Unit = 360 / (2 ** $Zoom);
-  my $Long1 = -180 + $X * $Unit;
+  $Unit = 360.0 / (2.0 ** $Zoom);
+  my $Long1 = -180.0 + $X * $Unit;
   return ($Lat2, $Long1, $Lat1, $Long1 + $Unit); # S,W,N,E
 }
 sub ProjectMercToLat($){
